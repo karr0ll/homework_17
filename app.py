@@ -72,6 +72,9 @@ genres_ns = api.namespace("genres")
 @movies_ns.route("/")
 class MoviesView(Resource):
     def get(self):
+        """
+        возвращает сериализованные данные о фильмах
+        """
         director_id = request.args.get("director_id")
         genre_id = request.args.get("genre_id")
 
@@ -103,6 +106,9 @@ class MoviesView(Resource):
 @movies_ns.route("/<int:mid>")
 class MoviesView(Resource):
     def get(self, mid: int):
+        """
+        возвращает сериализованные данные об одном фильме
+        """
         movie = db.session.query(Movie).get(mid)
         return movie_schema.dump(movie), 200
 
@@ -110,6 +116,9 @@ class MoviesView(Resource):
 @directors_ns.route("/")
 class DirectorsView(Resource):
     def post(self):
+        """
+        добавляет нового режиссера в таблицу Director
+        """
         request_json = request.json
         new_director = Director(**request_json)
 
@@ -122,6 +131,9 @@ class DirectorsView(Resource):
 @directors_ns.route("/<int:did>")
 class DirectorsView(Resource):
     def put(self, did: int):
+        """
+        обновляет режиссера в таблице Director
+        """
         director = db.session.query(Director).get(did)
         request_json = request.json
 
@@ -133,6 +145,9 @@ class DirectorsView(Resource):
         return "", 200
 
     def delete(self, did: int):
+        """
+        удаляет режиссера в таблице Director
+        """
         try:
             director = db.session.query(Director).get(did)
 
@@ -147,6 +162,9 @@ class DirectorsView(Resource):
 @genres_ns.route("/")
 class GenresView(Resource):
     def post(self):
+        """
+        добавляет новый жанр в таблицу Genre
+        """
         request_json = request.json
         new_genre = Genre(**request_json)
 
@@ -159,6 +177,9 @@ class GenresView(Resource):
 @genres_ns.route("/<int:gid>")
 class GenresView(Resource):
     def put(self, gid: int):
+        """
+        обновляет жанр в таблице Genre
+        """
         genre = db.session.query(Genre).get(gid)
         request_json = request.json
 
@@ -170,6 +191,9 @@ class GenresView(Resource):
         return "", 200
 
     def delete(self, gid: int):
+        """
+        удаляет жанр в таблице Genre
+        """
         try:
             genre = db.session.query(Genre).get(gid)
 
