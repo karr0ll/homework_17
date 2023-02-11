@@ -9,6 +9,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 
+# db models
+
 class Movie(db.Model):
     __tablename__ = 'movie'
     id = db.Column(db.Integer, primary_key=True)
@@ -34,6 +36,8 @@ class Genre(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255))
 
+
+# schemas
 
 class DirectorSchema(Schema):
     id = fields.Int()
@@ -61,13 +65,18 @@ movies_schema = MovieSchema(many=True)
 
 director_schema = DirectorSchema()
 
-genre_schema = DirectorSchema()
+genre_schema = GenreSchema()
+genres_schema = GenreSchema(many=True)
+
+# namespaces
 
 api = Api(app)
 movies_ns = api.namespace("movies")
 directors_ns = api.namespace("directors")
 genres_ns = api.namespace("genres")
 
+
+# Movie http methods
 
 @movies_ns.route("/")
 class MoviesView(Resource):
@@ -99,7 +108,7 @@ class MoviesView(Resource):
                 return "", 204
 
         else:
-            paginated_movies = db.session.query(Movie).order_by(Movie.id)[pagination_from:pagination_to]
+            paginated_movies = Movie.query.order_by(Movie.id)[pagination_from:pagination_to]
             return movies_schema.dump(paginated_movies), 200
 
 
@@ -110,6 +119,8 @@ class MoviesView(Resource):
         возвращает сериализованные данные об одном фильме
         """
         movie = db.session.query(Movie).get(mid)
+        if not movie:
+            return "", 404
         return movie_schema.dump(movie), 200
 
 
@@ -127,6 +138,8 @@ class DirectorsView(Resource):
 
         return "", 201
 
+
+# Director http methods
 
 @directors_ns.route("/<int:did>")
 class DirectorsView(Resource):
@@ -159,8 +172,13 @@ class DirectorsView(Resource):
             return f" Такой записи в базе нет", 404
 
 
+# Genre http methods
 @genres_ns.route("/")
 class GenresView(Resource):
+    def get(self):
+        all_genres = db.session.query(Genre).all()
+        return genres_schema.dump(all_genres)
+
     def post(self):
         """
         добавляет новый жанр в таблицу Genre
@@ -176,6 +194,10 @@ class GenresView(Resource):
 
 @genres_ns.route("/<int:gid>")
 class GenresView(Resource):
+    def get(self, gid: int):
+        all_movies = db.session.query(Movie).filter(Movie.genre_id == gid)
+        return movies_schema.dump(all_movies)
+
     def put(self, gid: int):
         """
         обновляет жанр в таблице Genre
