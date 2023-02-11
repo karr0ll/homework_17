@@ -135,6 +135,7 @@ class DirectorsView(Resource):
 
         with db.session.begin():
             db.session.add(new_director)
+            db.session.commit()  # commit added
 
         return "", 201
 
@@ -188,6 +189,7 @@ class GenresView(Resource):
 
         with db.session.begin():
             db.session.add(new_genre)
+            db.session.commit()  # commit added
 
         return "", 201
 
