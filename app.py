@@ -2,6 +2,7 @@ from flask import Flask, request
 from flask_restx import Api, Resource
 from flask_sqlalchemy import SQLAlchemy
 from marshmallow import Schema, fields
+from sqlalchemy import func
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
@@ -64,6 +65,8 @@ movie_schema = MovieSchema()
 movies_schema = MovieSchema(many=True)
 
 director_schema = DirectorSchema()
+directors_schema = DirectorSchema(many=True)
+
 
 genre_schema = GenreSchema()
 genres_schema = GenreSchema(many=True)
@@ -74,6 +77,67 @@ api = Api(app)
 movies_ns = api.namespace("movies")
 directors_ns = api.namespace("directors")
 genres_ns = api.namespace("genres")
+
+# additional functions
+with app.app_context():
+    def check_and_add_genres():
+        """
+        проверяет наличие жанра в таблице
+        добавляет новый жанр, если его нет в таблицу
+        """
+        request_json = request.json
+
+        all_genres = db.session.query(Genre).all()
+        genre = request_json.get("genre")
+
+        if genre not in all_genres:
+            genre_id = db.session.query(Genre, func.max(Genre.id)).one()
+            new_genre = Genre(
+                id=genre_id[1] + 1,
+                name=genre
+            )
+            db.session.add(new_genre)
+
+
+    def check_and_add_directors():
+        """
+        проверяет наличие режиссера в таблице
+        добавляет нового режиссера, если его нет в таблицу
+        """
+        request_json = request.json
+
+        all_directors = db.session.query(Director).all()
+        director = request_json.get("director")
+        director_id = db.session.query(Director, func.max(Director.id)).one()
+
+        if director not in all_directors:
+            new_director = Director(
+                id=director_id[1] + 1,
+                name=director
+            )
+            db.session.add(new_director)
+
+    def set_genre_id(genre_name):
+        """
+        получает номер последнего id в таблице genre
+        (в таблице нет autoincrement PK)
+        """
+        all_genres = db.session.query(Genre).all()
+        for genre in all_genres:
+            if genre_name == genre.name:
+                genre_id = genre.id
+                return genre_id
+
+    def set_director_id(director_name):
+        """
+        получает номер последнего id в таблице director
+        (в таблице нет autoincrement PK)
+        """
+        all_directors = db.session.query(Director).all()
+        for director in all_directors:
+            if director_name == director.name:
+                director_id = director.id
+                return director_id
 
 
 # Movie http methods
@@ -111,6 +175,32 @@ class MoviesView(Resource):
             paginated_movies = Movie.query.order_by(Movie.id)[pagination_from:pagination_to]
             return movies_schema.dump(paginated_movies), 200
 
+    def post(self):
+        """
+        добавляет новый фильм в таблицу Movie
+        """
+        request_json = request.json
+
+        check_and_add_genres()
+        check_and_add_directors()
+
+
+        new_movie = Movie(
+                id=request_json.get("id"),
+                title=request_json.get("title"),
+                description=request_json.get("description"),
+                trailer=request_json.get("trailer"),
+                year=request_json.get("year"),
+                rating=request_json.get("rating"),
+                genre_id=set_genre_id(request_json.get("genre")),
+                director_id=set_director_id(request_json.get("director"))
+        )
+        db.session.add(new_movie)
+        db.session.commit()
+        db.session.close()
+
+        return "", 201
+
 
 @movies_ns.route("/<int:mid>")
 class MoviesView(Resource):
@@ -123,9 +213,49 @@ class MoviesView(Resource):
             return "", 404
         return movie_schema.dump(movie), 200
 
+    def put(self, mid: int):
+        movie = db.session.query(Movie).get(mid)
+        request_json = request.json
+
+        check_and_add_genres()
+        check_and_add_directors()
+
+        movie.id = request_json.get("id")
+        movie.title = request_json.get("title")
+        movie.description = request_json.get("description")
+        movie.trailer = request_json.get("trailer")
+        movie.year = request_json.get("year")
+        movie.rating = request_json.get("rating")
+        movie.genre_id = set_genre_id(request_json.get("genre"))
+        movie.director_id = set_director_id(request_json.get("director"))
+
+        db.session.add(movie)
+        db.session.commit()
+
+        return "", 200
+
+    def delete(self, mid: int):
+
+        try:
+            movie = db.session.query(Movie).get(mid)
+            db.session.delete(movie)
+            db.session.commit()
+        except:
+            return f" Такой записи в базе нет", 404
+
 
 @directors_ns.route("/")
 class DirectorsView(Resource):
+    def get(self):
+        """
+        возвращает сериализованные данные обо всех режиссерах
+        """
+        directors = db.session.query(Director).get(all)
+        if not directors:
+            return "", 404
+        return directors_schema.dump(directors), 200
+
+
     def post(self):
         """
         добавляет нового режиссера в таблицу Director
@@ -144,6 +274,17 @@ class DirectorsView(Resource):
 
 @directors_ns.route("/<int:did>")
 class DirectorsView(Resource):
+    def get(self, did: int):
+        """
+        возвращает все фильмы режиссера
+        """
+
+        director_movies = db.session.query(Movie).filter(Movie.director_id == did)
+        if not director_movies:
+            return "", 404
+        return movies_schema.dump(director_movies), 200
+
+
     def put(self, did: int):
         """
         обновляет режиссера в таблице Director
@@ -177,6 +318,9 @@ class DirectorsView(Resource):
 @genres_ns.route("/")
 class GenresView(Resource):
     def get(self):
+        """
+        возвращает все жанры
+        """
         all_genres = db.session.query(Genre).all()
         return genres_schema.dump(all_genres)
 
@@ -197,6 +341,9 @@ class GenresView(Resource):
 @genres_ns.route("/<int:gid>")
 class GenresView(Resource):
     def get(self, gid: int):
+        """
+        возвращает все фильмы жанра
+        """
         all_movies = db.session.query(Movie).filter(Movie.genre_id == gid)
         return movies_schema.dump(all_movies)
 
