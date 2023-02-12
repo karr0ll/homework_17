@@ -67,7 +67,6 @@ movies_schema = MovieSchema(many=True)
 director_schema = DirectorSchema()
 directors_schema = DirectorSchema(many=True)
 
-
 genre_schema = GenreSchema()
 genres_schema = GenreSchema(many=True)
 
@@ -83,20 +82,25 @@ with app.app_context():
     def check_and_add_genres():
         """
         проверяет наличие жанра в таблице
-        добавляет новый жанр, если его нет в таблицу
+        добавляет новый жанр, если его нет в таблицe
         """
         request_json = request.json
-
         all_genres = db.session.query(Genre).all()
         genre = request_json.get("genre")
 
-        if genre not in all_genres:
+        all_genres_response = []
+        for item in all_genres:
+            all_genres_response.append(item.name)
+
+        if genre not in all_genres_response:
             genre_id = db.session.query(Genre, func.max(Genre.id)).one()
             new_genre = Genre(
                 id=genre_id[1] + 1,
                 name=genre
             )
+
             db.session.add(new_genre)
+            db.session.commit()
 
 
     def check_and_add_directors():
@@ -105,17 +109,23 @@ with app.app_context():
         добавляет нового режиссера, если его нет в таблицу
         """
         request_json = request.json
-
-        all_directors = db.session.query(Director).all()
+        all_genres = db.session.query(Director).all()
         director = request_json.get("director")
-        director_id = db.session.query(Director, func.max(Director.id)).one()
 
-        if director not in all_directors:
+        all_directors_response = []
+        for item in all_genres:
+            all_directors_response.append(item.name)
+
+        if director not in all_directors_response:
+            director_id = db.session.query(Director, func.max(Director.id)).one()
             new_director = Director(
                 id=director_id[1] + 1,
                 name=director
             )
+
             db.session.add(new_director)
+            db.session.commit()
+
 
     def set_genre_id(genre_name):
         """
@@ -127,6 +137,7 @@ with app.app_context():
             if genre_name == genre.name:
                 genre_id = genre.id
                 return genre_id
+
 
     def set_director_id(director_name):
         """
@@ -184,16 +195,15 @@ class MoviesView(Resource):
         check_and_add_genres()
         check_and_add_directors()
 
-
         new_movie = Movie(
-                id=request_json.get("id"),
-                title=request_json.get("title"),
-                description=request_json.get("description"),
-                trailer=request_json.get("trailer"),
-                year=request_json.get("year"),
-                rating=request_json.get("rating"),
-                genre_id=set_genre_id(request_json.get("genre")),
-                director_id=set_director_id(request_json.get("director"))
+            id=request_json.get("id"),
+            title=request_json.get("title"),
+            description=request_json.get("description"),
+            trailer=request_json.get("trailer"),
+            year=request_json.get("year"),
+            rating=request_json.get("rating"),
+            genre_id=set_genre_id(request_json.get("genre")),
+            director_id=set_director_id(request_json.get("director"))
         )
         db.session.add(new_movie)
         db.session.commit()
@@ -255,7 +265,6 @@ class DirectorsView(Resource):
             return "", 404
         return directors_schema.dump(directors), 200
 
-
     def post(self):
         """
         добавляет нового режиссера в таблицу Director
@@ -283,7 +292,6 @@ class DirectorsView(Resource):
         if not director_movies:
             return "", 404
         return movies_schema.dump(director_movies), 200
-
 
     def put(self, did: int):
         """
